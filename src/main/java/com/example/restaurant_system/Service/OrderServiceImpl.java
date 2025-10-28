@@ -440,6 +440,18 @@ public class OrderServiceImpl implements OrderService {
         return orders;
     }
 
+    @Override
+    public List<Order> getOrdersByStatusNotIn(java.util.List<OrderStatus> excludedStatuses) {
+        System.out.println("📋 [SERVICE] Getting orders excluding statuses: " + excludedStatuses);
+        // Fallback implementation in case repository method is not available at runtime
+        List<Order> orders = orderRepository.findAll();
+        List<Order> filtered = orders.stream()
+                .filter(o -> o.getStatus() == null || !excludedStatuses.contains(o.getStatus()))
+                .toList();
+        System.out.println("✅ Found " + filtered.size() + " orders excluding: " + excludedStatuses);
+        return filtered;
+    }
+
     // METHOD createOrderFromEntity GIỮ NGUYÊN
     @Transactional
     public Order createOrderFromEntity(Order order) {
