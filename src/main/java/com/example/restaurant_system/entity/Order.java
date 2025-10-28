@@ -46,10 +46,13 @@ public class Order { // 🔥 XÓA @JsonIgnoreProperties
 
     private Double totalAmount;
     private String notes;
+    // ✅ Trạng thái thanh toán
+    private Boolean paid = false;
+    private java.time.LocalDateTime paidAt;
 
     // 🔥 SỬA: Dùng @JsonIgnore và FetchType.LAZY
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    @JsonIgnore
+    // NOTE: we want to serialize order details so frontend can render items
     private List<OrderDetail> orderDetails = new ArrayList<>();
 
     // ✅ Hàm tiện ích để thêm chi tiết đơn hàng
@@ -90,5 +93,15 @@ public class Order { // 🔥 XÓA @JsonIgnoreProperties
                 ", totalAmount=" + totalAmount +
                 ", createdAt=" + createdAt +
                 '}';
+    }
+
+    // ✅ Provide tableNumber for JSON output (table is lazy and ignored to avoid cycles)
+    @com.fasterxml.jackson.annotation.JsonProperty("tableNumber")
+    public String getTableNumber() {
+        try {
+            return this.table != null ? this.table.getName() : null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

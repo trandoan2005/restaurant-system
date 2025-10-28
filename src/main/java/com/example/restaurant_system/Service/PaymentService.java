@@ -25,6 +25,7 @@ public class PaymentService {
 
     private final PaymentRepository paymentRepository;
     private final MomoConfig momoConfig;
+    private final com.example.restaurant_system.repository.OrderRepository orderRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -34,7 +35,8 @@ public class PaymentService {
         payment.setStatus(PaymentStatus.PENDING);
         payment.setTotalAmount(amount);
         payment.setOrderId(orderId != null ? orderId : generateOrderId());
-        payment.setRequestId(payment.getOrderId());
+        // ensure requestId is unique even if linked to an existing order
+        payment.setRequestId(payment.getOrderId() + "-" + System.currentTimeMillis());
         payment.setCustomerName(customerName);
         payment.setCustomerPhone(customerPhone);
         return paymentRepository.save(payment);
@@ -97,15 +99,68 @@ public class PaymentService {
     }
 
     public Payment processSuccessfulPayment(String transactionId, String requestId) {
-        Payment payment = paymentRepository.findByTransactionId(transactionId)
-                .orElse(paymentRepository.findByRequestId(requestId)
-                        .orElseThrow(() -> new RuntimeException("Payment not found")));
+        Payment payment = null;
+        if (transactionId != null) {
+            payment = paymentRepository.findByTransactionId(transactionId).orElse(null);
+        }
+        if (payment == null) {
+            try {
+                payment = paymentRepository.findByRequestId(requestId).orElse(null);
+            } catch (Exception ex) {
+                // duplicate results fallback
+                java.util.List<Payment> list = paymentRepository.findAllByRequestId(requestId);
+                if (list != null && !list.isEmpty()) payment = list.get(0);
+            }
+        }
+        if (payment == null) throw new RuntimeException("Payment not found");
 
         payment.setStatus(PaymentStatus.COMPLETED);
         payment.setTransactionId(transactionId);
         payment.setCompletedAt(LocalDateTime.now());
 
-        return paymentRepository.save(payment);
+        Payment saved = paymentRepository.save(payment);
+
+        // If payment is linked to an order, mark the order as paid
+        try {
+            if (saved.getOrderId() != null) {
+                try {
+                    Long orderId = Long.valueOf(saved.getOrderId());
+                    com.example.restaurant_system.entity.Order order = orderRepository.findById(orderId).orElse(null);
+                    if (order != null) {
+                        order.setPaid(true);
+                        order.setPaidAt(LocalDateTime.now());
+                        orderRepository.save(order);
+                    }
+                } catch (NumberFormatException ignored) {}
+            }
+        } catch (Exception e) {
+            System.out.println("⚠️ Could not update order paid flag: " + e.getMessage());
+        }
+
+        // Notify socket server (best-effort)
+        notifySocketServerPayment(saved);
+
+        return saved;
+    }
+
+    // Notify socket server about successful payment (simple HTTP POST)
+    private void notifySocketServerPayment(Payment payment) {
+        try {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("paymentId", payment.getId());
+            payload.put("orderId", payment.getOrderId());
+            payload.put("status", payment.getStatus().name());
+            payload.put("transactionId", payment.getTransactionId());
+
+            RestTemplate rest = new RestTemplate();
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<String> entity = new HttpEntity<>(objectMapper.writeValueAsString(payload), headers);
+            rest.postForEntity("http://localhost:3001/notify-payment", entity, String.class);
+        } catch (Exception e) {
+            // ignore notification failures in mock mode
+            System.out.println("⚠️ Could not notify socket server: " + e.getMessage());
+        }
     }
 
     public Payment processFailedPayment(String requestId, String errorMessage) {

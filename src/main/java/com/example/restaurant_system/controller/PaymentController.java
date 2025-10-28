@@ -87,6 +87,30 @@ public class PaymentController {
         }
     }
 
+    // ✅ MOCK: Checkout nhanh cho testing (tạo Payment rồi mark COMPLETED ngay lập tức)
+    @PostMapping("/mock-checkout")
+    public ResponseEntity<ApiResponse> mockCheckout(@RequestBody PaymentRequest request) {
+        try {
+            // Tạo payment (PENDING)
+            Payment payment = paymentService.createOnlinePayment(
+                    request.getPaymentMethod(),
+                    request.getAmount(),
+                    request.getOrderId(),
+                    request.getCustomerName(),
+                    request.getCustomerPhone()
+            );
+
+            // Gán transactionId giả và mark completed
+            String fakeTx = "MOCKTX-" + System.currentTimeMillis();
+            payment.setTransactionId(fakeTx);
+            payment = paymentService.processSuccessfulPayment(fakeTx, payment.getRequestId());
+
+            return ResponseEntity.ok(ApiResponse.success("✅ Mock checkout thành công", payment));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("❌ Lỗi mock checkout: " + e.getMessage()));
+        }
+    }
+
     // ✅ Webhook xử lý kết quả từ Momo
     @PostMapping("/webhook/momo")
     public ResponseEntity<?> momoWebhook(@RequestBody Map<String, Object> payload) {

@@ -18,5 +18,6 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     // ✅ THÊM: Các method mới cho thanh toán online
     Optional<Payment> findByTransactionId(String transactionId);
     Optional<Payment> findByRequestId(String requestId);
+    java.util.List<Payment> findAllByRequestId(String requestId);
     List<Payment> findByOrderId(String orderId);
 }

@@ -160,9 +160,26 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Order> getAllOrders() {
         System.out.println("📋 [SERVICE] Getting all orders...");
         List<Order> orders = orderRepository.findAllByOrderByCreatedAtDesc();
+        // Initialize lazy collections and related entities so JSON serializer can access them
+        for (Order o : orders) {
+            try {
+                // touch orderDetails
+                o.getOrderDetails().size();
+            } catch (Exception e) {
+                // ignore
+            }
+            try {
+                if (o.getTable() != null) {
+                    o.getTable().getName();
+                }
+            } catch (Exception e) {
+                // ignore
+            }
+        }
         System.out.println("✅ Found " + orders.size() + " orders");
         return orders;
     }

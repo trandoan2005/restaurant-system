@@ -27,8 +27,4 @@ public class OrderDetail {
     private Double price;
     private String note;
     private String kitchenStatus; // "PENDING", "PREPARING", "READY", "COMPLETED"
-    public Object getProduct() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getProduct'");
-    }
 }
